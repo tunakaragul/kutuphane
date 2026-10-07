@@ -261,6 +261,53 @@ for (let row = ROWS - 1; row >= 0; row--) {
     }
   }
 }
+
+// ---------- Yerdeki kitap yığınları ----------
+// Yatay kitap sırtı: yazı soldan sağa akar, doku oranı kitabın kalınlığına göre ayarlanır
+function spineTextureH(title, color, thick, len) {
+  const W = 512, H = Math.max(40, Math.round(W * thick / len));
+  const c = document.createElement('canvas'); c.width = W*TEX_SCALE; c.height = H*TEX_SCALE;
+  const x = c.getContext('2d'); x.scale(TEX_SCALE, TEX_SCALE);
+  x.fillStyle = color; x.fillRect(0, 0, W, H);
+  const light = Math.random() > .5;
+  x.fillStyle = light ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.35)';
+  x.fillRect(34, 0, 6, H); x.fillRect(W - 40, 0, 6, H);
+  let size = H * .6; x.font = `bold ${size}px Georgia`;
+  while (x.measureText(title).width > W - 130 && size > 12) { size -= 2; x.font = `bold ${size}px Georgia`; }
+  x.fillStyle = light ? '#fff' : '#f4efe2'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(title, W/2, H/2 + 2);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = isMobile ? 4 : 8;
+  return t;
+}
+
+function makeStack(cx, cz, targetH) {
+  // Yaklaşma ve inceleme kodu "shelf.position" bekliyor; yığın için sahte bir bağlantı noktası veriyoruz
+  const anchor = { position: { x: cx, z: 0 } };
+  let y = .001;
+  while (true) {
+    const thick = .025 + Math.random()*.025;
+    if (y + thick > targetH) break;
+    const len = .2 + Math.random()*.07, dep = .14 + Math.random()*.05;
+    const title = titles[count] ?? `Kitap ${count + 1}`; count++;
+    const color = palette[Math.floor(Math.random()*palette.length)];
+    const cover = mat(color, .7);
+    const spine = new THREE.MeshStandardMaterial({ map: spineTextureH(title, color, thick, len), roughness:.65 });
+    // Sıra: +x, -x (baş/kuyruk kenarı), +y, -y (kapaklar), +z (sırt, öne bakar), -z (sayfa kenarı)
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, thick, dep),
+                                [pageMat, pageMat, cover, cover, spine, pageMat]);
+    const px = cx + (Math.random() - .5)*.025, pz = cz + (Math.random() - .5)*.02;
+    mesh.position.set(px, y + thick/2, pz);
+    mesh.rotation.y = (Math.random() - .5) * .12;      // yığın biraz dağınık dursun
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData = { title, baseZ: pz, targetZ: pz, shelf: anchor, depth: dep, lying: true };
+    scene.add(mesh);
+    bookMeshes.push(mesh);
+    y += thick + .0005;
+  }
+}
+makeStack(-2.14, BACK_Z + .13, .95);   // sol kitaplığın yanı: uzun yığın
+makeStack( 2.14, BACK_Z + .13, .45);   // sağ kitaplığın yanı: kısa yığın
+
 const pickables = [...bookMeshes, ...shelfParts, ...chairParts];
 
 // ======================================================================
@@ -326,15 +373,21 @@ function approachShelf(shelf, point) {
   goTo('pov', () => povView, 1.0);
 }
 function sitDown() { closePanel(); seatPitch = 0; goTo('seat', seatTarget, 1.2); }
+
 function focusBook(b) {
   if (mode !== 'focus') prevMode = mode;
   focusedBook = b;
   const wp = new V3(); b.getWorldPosition(wp);
   const frontZ = b.userData.shelf.position.z + b.userData.baseZ + b.userData.depth/2 + .1;
   focusView = { pos: new V3(wp.x, wp.y, frontZ + .45), yaw: 0, pitch: 0, fov: 45 };
+  if (b.userData.lying) {                       // yerdeki kitap: kamerayı yükselt, aşağı baktır
+    focusView.pos.y += .3;
+    focusView.pitch = -Math.atan2(.3, .45);
+  }
   selected = b.userData.title; panel.style.display = 'block'; renderPanel();
   goTo('focus', () => focusView, .8);
 }
+
 function closeFocus() {
   panel.style.display = 'none'; focusedBook = null; selected = null;
   if (prevMode === 'seat') goTo('seat', seatTarget, .9);
