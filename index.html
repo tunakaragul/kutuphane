@@ -21,6 +21,10 @@
              padding:9px 12px;cursor:pointer;font-size:13px;touch-action:manipulation}
   #ui button:hover{background:rgba(60,60,60,.85)}
   #ui button.active{background:#2649B2;border-color:#4A74F3;color:#fff}
+  #search{background:rgba(15,15,15,.78);color:#fff;border:1px solid #555;border-radius:10px;
+          padding:9px 12px;font-size:16px;width:150px;max-width:40vw;
+          -webkit-user-select:text;user-select:text}
+  #search::placeholder{color:#999}
   #rowBtns{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:10px;z-index:6}
   #rowBtns button{width:50px;height:50px;border-radius:50%;border:1px solid #666;background:rgba(15,15,15,.78);
                   color:#fff;font-size:20px;touch-action:manipulation}
@@ -43,6 +47,7 @@
   <button data-act="left">📚 Sol raf</button>
   <button data-act="right">📚 Sağ raf</button>
   <button data-act="seat" id="seatBtn">🪑 Otur</button>
+  <input id="search" type="search" placeholder="🔍 Kitap / yazar ara" enterkeyhint="search" autocomplete="off">
 </div>
 <div id="rowBtns">
   <button id="rowUp">▲</button>
@@ -69,20 +74,275 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 const V3 = THREE.Vector3, clamp = THREE.MathUtils.clamp;
 const isMobile = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// ---------- Kitap isimleri (kendi listeni yaz; yetmezse "Kitap N" ile devam eder) ----------
-const titles = [
-  'Suç ve Ceza','Sefiller','Tutunamayanlar','Kürk Mantolu Madonna','1984','Simyacı',
-  'Beyaz Diş','Yabancı','Dönüşüm','Saatleri Ayarlama Enstitüsü','Huzur','Körlük',
-  'Sapiens','Dune','Vadideki Zambak','Küçük Prens','Hayvan Çiftliği','Ateşten Gömlek',
-  'İnsan Ne ile Yaşar','Mai ve Siyah','Sessiz Ev','Bilge Kral','Anna Karenina','Savaş ve Barış',
-  'Karamazov Kardeşler','Olasılıksız','Beyaz Kale','Kar','Masumiyet Müzesi','Çalıkuşu',
-  'Yaprak Dökümü','Aylak Adam','İnce Memed','Sefiller 2','Fahrenheit 451','Cesur Yeni Dünya',
-  'Vakıf','Neuromancer','Şeker Portakalı','Martin Eden'
-];
+// ======================================================================
+//  KİTAP LİSTESİ — her şablon bir raf, ilk şablon en üst raf.
+//  Satır biçimi: "Yazar - Kitap" (yazarsız satır da olur). Soldan sağa dizilir.
+// ======================================================================
+const leftRows = [`
+William Golding - Sineklerin Tanrısı
+Jules Verne - Seksen Günde Dünya Gezisi
+Jules Verne - Ay'a Yolculuk
+Jack London - Beyaz Diş
+Jack London - Yıldız Gezgini
+Jack London - Martin Eden
+Stefan Zweig - Olağanüstü Bir Gece
+Stefan Zweig - Bir Kadının Yaşamından 24 Saat
+Stefan Zweig - Bilinmeyen Bir Kadının Mektubu
+Stefan Zweig - Mecburiyet
+Stefan Zweig - Bir Çöküşün Öyküsü
+Stefan Zweig - Satranç
+Paul Guimard - Hayata Dair Şeyler
+Gilbert K. Chesterton - Garip Meslekler Kulübü
+Mikkel Borch-Jacobsen, Sonu Samandashi - Freud Belgeleri
+L.N Tolstoy - Gençlik
+Descartes - Yöntem Üzerine Konuşma
+David Hume - İnsanın Anlama Yetisi Üzerine Bir Soruşturma
+Dostoyevski - Beyaz Geceler
+Emile Zola - Nasıl Ölünür?
+Sun Zi - Savaş Sanatı
+Sophokles - Antigone
+Oscar Wilde - Dorian Grey'in Portresi
+Platon - Şölen / Dostluk
+Platon - Devlet`,`
+J.D Salinger - Çavdar Tarlasında Çocuklar
+J.D Salinger - Franny ve Zoe
+Amin Maalouf - Semerkant
+Amin Maalouf - Tanios Kayası
+Amin Maalouf - Empedokles'in Dostları
+Amin Maalouf - Afrikalı Leo
+Amin Maalouf - Ölümcül Kimlikler
+Sabahattin Ali - Sırça Köşk
+Sabahattin Ali - İçimizdeki Şeytan
+Alberto Manguel - Kütüphanemi Toplarken
+J.B Pontalis - Pencereler
+Demir Özlü - İthaka'ya Yolculuk
+Ömür İklim Demir - Muhtelif Evhamlar Kitabı
+Oliver Sacks - Karısını Şapka Sanan Adam
+Hülya Koç - Bigamekibasuyake
+Cemal Süreya - Sevda Sözleri
+Orhan Pamuk - İstanbul
+Herman Melville - Moby Dick`,`
+J.K Huysmans - Tersine
+Erich Fromm - Olma Sanatı
+Erich Fromm - İtaatsizlik Üzerine
+Sait Faik Abasıyanık - Semaver
+Sait Faik Abasıyanık - Tüneldeki Çocuk
+Mehmet Rauf - Define
+Filozoflar Yaşamları ve Eserleri
+The Francis Bacon Collection
+Luigi Ficacci - Francis Bacon
+Mark Stevens, Annalyn Swan - Francis Bacon Revelations
+David Sylvester - Francis Bacon'la Söyleşiler
+Kitty Hauser, Christina Christoforou - İşte Bacon
+Daniel Farson - The Gilded Gutter Life Of Francis Bacon
+Özkan Eroğlu - Yeni Modern Francis Bacon
+Conversations With Tom Robbins
+Umberto Eco, Riccardo Fedriga - Felsefe Tarihi 1
+Amy Dempsey - Modern Sanat
+Stephanie Straine - Abstract Art`,`
+Gabriel Garcia Marquez - Kırmızı Pazartesi
+Paulo Coelho - Hippi
+Albert Camus - Yabancı
+Albert Camus - Sisifos Söylemi
+Osman Cemal Kaygılı - Eski İstanbul Akşamcıları
+Georges Perec - Paralı Asker
+Lawrence Durrell - Justine
+Julio Cortazar - Seksek
+Julio Cortazar - Ötekinin Rüyası
+Julio Cortazar - Sınav
+Miguel Herraez - Julio Cortazar
+Milan Kundera - Varolmanın Dayanılmaz Hafifliği
+Arda Yaman - Benim Küçük Karanlık Çağım
+Grand Grimoire - Kızıl Ejder
+Hermetic Arcanum
+Kybalion
+Olaf Stapledon - Alevler
+Yiğit Karaahmet - Deniz Ne Kadar Güzel
+Jack London - Yabanın Çağrısı
+Aslı Erdoğan - Hayatın Sessizliğinde
+Albert Caraco - Kaos'un Kutsal Kitabı
+Xavier de Maistre - Odamda Yolculuk
+Edouard Leve - İntihar
+Haruki Murakami - Koşmasaydım Yazamazdım`,`
+Mitch Albom - Öğretmenim Mori'yle Buluşmalar
+Gabor Mate - Vücudunuz Hayır Diyorsa
+Paul Kleinman - Psiko 101
+V.S Ramachandran - Öykücü Beyin
+Mark Twain - İnsan Nedir?
+Nigel Warburton - Felsefenin Kısa Tarihi
+Alain de Botton - Seyahat Sanatı
+Sigmund Freud - Günlük Yaşamın Psikopatolojisi
+Sigmund Freud - Bilinçaltı
+Sigmund Freud - Kitle Psikolojisi
+Alfred Adler - İnsan Tanıma Sanatı
+Marcus Sakey - Akıl Labirenti
+Richard Holloway - Dinin Kısa Tarihi
+David Foster Wallace - İğrenç Adamlarla Kısa Görüşmeler
+Gabriel Rolon - Bir Psikanalistin Notları
+Stefan Zweig - Nietzsche
+Robert Louis Stevenson - İntihar Kulübü
+Daniel Kahneman - Hızlı ve Yavaş Düşünme`,`
+John Updike - Terörist
+Sally Rooney - Arkadaşlarla Sohbetler
+Christy Brown - Sol Ayağım
+Christy Brown - Her Gün Hüzün
+Yusuf Atılgan - Aylak Adam
+Füruğ Ferruhzad - Rüzgar Bizi Götürecek
+Antonin Artaud - Ben Antonin Artaud
+Thomas More - Ütopya
+Becky Smethurst - Space
+Hemingway - Yaşlı Adam ve Deniz
+Quentin Meillassoux - Sonluluğun Sonrası
+Josh Cohen - Freud'u Nasıl Okumalıyız?
+Rafik Schami - Gece ile Sabah Arasında Yolculuk
+Saul Bellow - Yağmur Kralı
+Andy Weir - Marslı
+David Eagleman - Beyin
+Sigmund Freud - Haz İlkesinin Ötesinde Ben ve İd
+Thomas Bernhard - Yürümek / Evet
+Gavin Francis - İnsan Vücuduna Seyahat
+Orhan Pamuk - Kırmızı Saçlı Kadın
+Hiromi Kawakami - Nakano Eskici Dükkanı`];
 
-// ---------- Puan saklama ----------
-const ratings = JSON.parse(localStorage.getItem('ratings') || '{}');
-const saveRatings = () => localStorage.setItem('ratings', JSON.stringify(ratings));
+const rightRows = [`
+Tom Robbins - B, Bira
+Tom Robbins - Parfümün Dansı
+Tom Robbins - Ağaçkakan
+Tom Robbins - Geriye Uçan Yaban Ördekleri
+Tom Robbins - Dur Bir Mola Ver
+Tom Robbins - Sıska Bacaklar
+Tom Robbins - Kovboy Kızlar Da Hüzünlenir
+Tom Robbins - Tibet Şeftali Turtası
+Tom Robbins - Sıcak Ülkelerden Dönen Vahşi Sakatlar
+Tom Robbins - Sirius'tan Gelen Kurbağa
+Tom Robbins - Villa Meçhul
+Robert M. Pirsig - Zen ve Motorsiklet Bakım Sanatı
+Walker Percy - Lancelot
+Laurie Weeks - Fermuar Ağız
+Peter Handke - Kalecinin Penaltı Anındaki Endişesi
+Terry Eagleton - Mizah
+Iris Murdoch - Ağ`,`
+Chuck Palahniuk - Tekinsiz
+Chuck Palahniuk - Kaçaklar ve Mülteciler
+Chuck Palahniuk - Gösteri Peygamberi
+Chuck Palahniuk - Görünmez Canavarlar
+Cyrille Martinez - New York'ta İki Aylak Sanatçı
+Nelly Arcan - Fahişe
+Oscar Coop-Phane - Zenith Oteli
+Manuel Vilas - Parıltılı Armağan
+Will Self - Büyük Maymunlar
+Will Self - İzmarit
+Mircea Cartarescu - Travesti
+Gary Phillips - Tekinsiz Bölge
+Hubert Selby Jr. - Hücre
+Ingvar Ambjornsen - San Sebastian'da Hüzün
+Philippe Djian - Affedilmeyenler
+A.C Weisbecker - Kozmik Haydutlar
+Kym Floyd - Erskine'nin Kutusu
+Jack Kerouac - Yolda
+Octave Mirbeau - İşkence Bahçesi
+Jean Genet - Hırsızın Günlüğü
+Jean Genet - Çiçeklerin Meryem Anası
+Julian Barnes - Bir Son Duygusu`,`
+Julian Barnes - Zamanın Gürültüsü
+Dirk Wittenborn - Vahşi İnsanlar
+Daniel Pennac - Bedenin Güncesi
+Bruce Hood - Benlik Yanılsaması
+Jean Baudrillard - Amerika
+Jean Baudrillard - Tüketim Toplumu
+Gogol - Palto
+Samuel Beckett - Eşlik
+Ivan Illich - Şenlikli Toplum
+Alison Fell - Başucu Oğlanı
+Catherine Baker - Zorunlu Eğitime Hayır
+Hal Niedzviecki - Ben Özelim!
+Zygmunt Bauman - Yaşam Sanatı
+Terry Eagleton - Hayatın Anlamı
+Byung-Chul Han - Şeffaflık Toplumu
+John Berger - Görme Biçimleri
+Marcel Beyer - Yarasalar
+Charles Bukowski - Ekmek Arası
+E.M Cioran - Çürümenin Kitabı
+E.M Cioran - Ezeli Mağlup
+E.M Cioran - Doğmuş Olmanın Sakıncası Üzerine
+R.D Laing - Düğümler
+Haldun Gülalp - Vatandaşlık ve Etnik Çatışma
+Georges Perec - Uyuyan Adam
+Yaprak Koçak - Yüz Kıyafetleri Dükkanı`,`
+George R.R Martin - Taht Oyunları
+David Eddings - Kehanetin Oyuncağı
+David Eddings - Büyücüler Kraliçesi
+David Eddings - Sihirbazın Tuzağı
+David Eddings - Büyülü Şato
+David Eddings - Efsuncunun Oyunu
+David Eddings - Elmas Taht
+David Eddings - Yakut Şövalye
+David Eddings - Safir Gül
+J.R.R Tolkien - Yüzük Kardeşliği
+J.R.R Tolkien - İki Kule
+J.R.R Tolkien - Kralın Dönüşü`,`
+Asimov - Vakıf
+Ray Bradbury - Fahrenheit 451
+Aldous Huxley - Cesur Yeni Dünya
+Stanislaw Lem - Yenilmez
+Frank Herbert - Dune
+Frank Herbert - Dune Mesihi
+Italo Svevo - Zenon'un Bilinci
+Dostoyevski - Öteki
+Hüseyin Rahmi Gürpınar - Ben Deli Miyim?
+Osman Cemal Kaygılı - Çingeneler
+F. Scott Fitzgerald - Caz Çağı Öyküleri
+Luigi Pirandello - Biri, Hiçbiri, Binlercesi
+Luigi Pirandello - Sırasını Bekleyenler
+Luigi Pirandello - Merhum Mattia Pascal
+Henry David Thoreau - Yürümek & Kış Yürüyüşü
+Eduardo Galeano - Gölgede ve Güneşte Futbol`,`
+Konfüçyüs - Hayat, Mutsuz Olmak İçin Çok Kısa
+Jennifer Clement - Dul Bayan Basquiat
+Ashlee Vance - Elon Musk
+Aldous Huxley - Cesur Yeni Dünyayı Ziyaret
+Yaşar Kemal - Filler Sultanı ile Kırmızı Sakallı Topal Karınca
+Simone Weil - Felsefe Dersleri
+Douglas Adams - Otostopçunun Galaksi Rehberi
+Mark Twain - Tom Sawyer
+Jean-Luc Nancy - Tanrı, Adalet, Aşk, Güzellik
+Oruç Aruoba - hani
+Andre de Richard - Acı
+George Orwell - Paris ve Londra'da Beş Parasız
+Eckhart Tolle - Şimdi'nin Gücü
+Papadiamantis - Hadula
+Carl Gustav Jung - Kundalini Yoga Psikolojisi
+Jack Kerouac - Deniz Benim Kardeşim
+Freud - Mutluluk Dediğimiz Şey
+Alexandre Dumas - Monte Cristo Kontu`];
+
+// Yerdeki yığınlar: ilk satır EN ÜSTTEKİ kitap. Boş bırakılırsa geçici adlar kullanılır.
+const leftStackBooks = `
+
+`;
+const rightStackBooks = `
+
+`;
+
+// "Yazar - Kitap" satırını ayır (son " - " ayırıcıdır; yazarsız satırlar da olur)
+const parse = line => {
+  const i = line.lastIndexOf(' - ');
+  return i < 0 ? { author: '', title: line.trim() }
+               : { author: line.slice(0, i).trim(), title: line.slice(i + 3).trim() };
+};
+const toRow = block => block.split('\n').map(s => s.trim()).filter(Boolean).map(parse);
+const fullName = bk => bk.author ? `${bk.author} - ${bk.title}` : bk.title;
+
+// Sabit tohumlu rastgele sayı üreteci: her açılışta aynı yerleşim çıkar
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0;
+  let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rnd = mulberry32(2024);
+
+// ---------- Puan saklama (bozuk veya engelli depolamaya karşı korumalı) ----------
+let ratings = {};
+try { ratings = JSON.parse(localStorage.getItem('ratings') || '{}') || {}; } catch { ratings = {}; }
+const saveRatings = () => { try { localStorage.setItem('ratings', JSON.stringify(ratings)); } catch {} };
 
 // ---------- Sahne ----------
 const scene = new THREE.Scene();
@@ -91,7 +351,7 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.05, 50)
 camera.rotation.order = 'YXZ';
 camera.position.set(0, 1.35, 2.3);
 const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));   // telefonda pil ve hız için sınır
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -104,7 +364,7 @@ controls.target.set(0, 1.2, -2);
 controls.minDistance = 0.8; controls.maxDistance = 4.2;
 controls.maxPolarAngle = Math.PI * 0.55;
 controls.enableDamping = true;
-controls.enablePan = false;                 // iki parmakla kaydırma odadan çıkarabilir, kapalı
+controls.enablePan = false;
 controls.update();
 
 // ---------- Işık ----------
@@ -210,103 +470,112 @@ function makeBookshelf(x) {
 }
 const shelves = [makeBookshelf(-1.45), makeBookshelf(1.45)];
 
-// ---------- Kitap sırtı dokusu ----------
+// ---------- Kitap sırtı dokuları ----------
 const palette = ['#8c2f39','#2f4b7c','#2d6a4f','#c8963e','#5b3a29','#3d3b6e','#a3a3a3','#1f2933','#b5523b','#4a7c7e','#6b4c9a','#d9c9a3','#c0392b','#16697a'];
-const TEX_SCALE = isMobile ? .75 : 1;       // telefonda doku bellek kullanımını azalt
-function spineTexture(title, color) {
+const TEX_SCALE = isMobile ? .75 : 1;
+const pageMat = mat(0xefe6d2, .95);
+const coverCache = new Map();                         // aynı renkli kapaklar tek materyali paylaşır
+const coverMat = color => { if (!coverCache.has(color)) coverCache.set(color, mat(color, .7)); return coverCache.get(color); };
+
+function fitText(ctx, text, maxW, startSize, minSize) {
+  let size = startSize; ctx.font = `bold ${size}px Georgia`;
+  while (ctx.measureText(text).width > maxW && size > minSize) { size -= 2; ctx.font = `bold ${size}px Georgia`; }
+}
+function spineTexture(title, color) {                 // dikey kitap: yazı aşağı doğru akar
   const c = document.createElement('canvas'); c.width = 128*TEX_SCALE; c.height = 512*TEX_SCALE;
   const x = c.getContext('2d'); x.scale(TEX_SCALE, TEX_SCALE);
   x.fillStyle = color; x.fillRect(0, 0, 128, 512);
-  const light = Math.random() > .5;
+  const light = rnd() > .5;
   x.fillStyle = light ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.35)';
   x.fillRect(0, 30, 128, 7); x.fillRect(0, 476, 128, 7);
   x.beginPath(); x.arc(64, 447, 12, 0, 7); x.fill();
   x.save(); x.translate(64, 250); x.rotate(Math.PI/2);
-  let size = 54; x.font = `bold ${size}px Georgia`;
-  while (x.measureText(title).width > 340 && size > 18) { size -= 2; x.font = `bold ${size}px Georgia`; }
+  fitText(x, title, 400, 54, 14);
   x.fillStyle = light ? '#fff' : '#f4efe2'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(title, 0, 0); x.restore();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = isMobile ? 4 : 8;
   return t;
 }
-const pageMat = mat(0xefe6d2, .95);
-
-// ---------- Kitapları diz (üst raftan başla, tam doldur) ----------
-const bookMeshes = [];
-const innerW = SHELF_W - 2*SIDE;
-let count = 0;
-for (let row = ROWS - 1; row >= 0; row--) {
-  for (const shelf of shelves) {
-    const floorY = BOARD + row*pitchRow + BOARD/2;
-    const maxH = pitchRow - BOARD - .05;
-    let cursor = -innerW/2 + .01;
-    while (true) {
-      const w = .032 + Math.random()*.04;
-      if (cursor + w > innerW/2 - .005) break;
-      const h = Math.min(maxH, .2 + Math.random()*(maxH - .2));
-      const d = .18 + Math.random()*.06;
-      const title = titles[count] ?? `Kitap ${count + 1}`;
-      const color = palette[Math.floor(Math.random()*palette.length)];
-      const cover = mat(color, .7);
-      const spine = new THREE.MeshStandardMaterial({map: spineTexture(title, color), roughness:.65});
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [cover, cover, pageMat, pageMat, spine, pageMat]);
-      const baseZ = -SHELF_D/2 + .012 + d/2 + Math.random()*.02;
-      mesh.position.set(cursor + w/2, floorY + h/2, baseZ);
-      mesh.castShadow = true; mesh.receiveShadow = true;
-      mesh.userData = {title, baseZ, targetZ: baseZ, shelf, depth: d};
-      shelf.add(mesh);
-      bookMeshes.push(mesh);
-      cursor += w + .001;
-      count++;
-    }
-  }
-}
-
-// ---------- Yerdeki kitap yığınları ----------
-// Yatay kitap sırtı: yazı soldan sağa akar, doku oranı kitabın kalınlığına göre ayarlanır
-function spineTextureH(title, color, thick, len) {
+function spineTextureH(title, color, thick, len) {    // yatık kitap: yazı soldan sağa
   const W = 512, H = Math.max(40, Math.round(W * thick / len));
   const c = document.createElement('canvas'); c.width = W*TEX_SCALE; c.height = H*TEX_SCALE;
   const x = c.getContext('2d'); x.scale(TEX_SCALE, TEX_SCALE);
   x.fillStyle = color; x.fillRect(0, 0, W, H);
-  const light = Math.random() > .5;
+  const light = rnd() > .5;
   x.fillStyle = light ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.35)';
   x.fillRect(34, 0, 6, H); x.fillRect(W - 40, 0, 6, H);
-  let size = H * .6; x.font = `bold ${size}px Georgia`;
-  while (x.measureText(title).width > W - 130 && size > 12) { size -= 2; x.font = `bold ${size}px Georgia`; }
+  fitText(x, title, W - 130, H * .6, 12);
   x.fillStyle = light ? '#fff' : '#f4efe2'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(title, W/2, H/2 + 2);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = isMobile ? 4 : 8;
   return t;
 }
 
-function makeStack(cx, cz, targetH) {
-  // Yaklaşma ve inceleme kodu "shelf.position" bekliyor; yığın için sahte bir bağlantı noktası veriyoruz
-  const anchor = { position: { x: cx, z: 0 } };
+// ---------- Kitapları raflara diz ----------
+const bookMeshes = [];
+const innerW = SHELF_W - 2*SIDE;
+[leftRows, rightRows].forEach((rowsOfShelf, si) => {
+  const shelf = shelves[si];
+  rowsOfShelf.forEach((block, i) => {
+    const list = toRow(block);
+    const row = ROWS - 1 - i;                          // ilk şablon en üst raf
+    const floorY = BOARD + row*pitchRow + BOARD/2;
+    const maxH = pitchRow - BOARD - .05;
+
+    // Genişlikler: raf dolsun ama tek kitap 7 cm'den kalın olmasın
+    const weights = list.map(() => .8 + rnd()*.4);
+    const total = Math.min(innerW - .02, list.length * .07);
+    const sumW = weights.reduce((a, b) => a + b, 0);
+    let cursor = -innerW/2 + .01;
+
+    list.forEach((bk, k) => {
+      const w = weights[k] / sumW * total;
+      const h = Math.min(maxH, .2 + rnd()*(maxH - .2));
+      const d = .18 + rnd()*.06;
+      const color = palette[Math.floor(rnd()*palette.length)];
+      const cover = coverMat(color);
+      const spine = new THREE.MeshStandardMaterial({map: spineTexture(bk.title, color), roughness:.65});
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [cover, cover, pageMat, pageMat, spine, pageMat]);
+      const baseZ = -SHELF_D/2 + .012 + d/2 + rnd()*.02;
+      mesh.position.set(cursor + w/2, floorY + h/2, baseZ);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.userData = {title: fullName(bk), baseZ, targetZ: baseZ, shelf, depth: d};
+      shelf.add(mesh);
+      bookMeshes.push(mesh);
+      cursor += w;
+    });
+  });
+});
+
+// ---------- Yerdeki kitap yığınları ----------
+function makeStack(cx, cz, block, label, fallbackCount) {
+  let items = toRow(block);
+  if (!items.length) items = Array.from({length: fallbackCount}, (_, i) => ({author: '', title: `${label} ${i + 1}`}));
+  items = items.slice().reverse();                     // ilk satır en üstteki kitap
+  const anchor = new THREE.Object3D();                 // yaklaşma/inceleme kodu için bağlantı noktası
+  anchor.position.set(cx, 0, 0);
   let y = .001;
-  while (true) {
-    const thick = .025 + Math.random()*.025;
-    if (y + thick > targetH) break;
-    const len = .2 + Math.random()*.07, dep = .14 + Math.random()*.05;
-    const title = titles[count] ?? `Kitap ${count + 1}`; count++;
-    const color = palette[Math.floor(Math.random()*palette.length)];
-    const cover = mat(color, .7);
-    const spine = new THREE.MeshStandardMaterial({ map: spineTextureH(title, color, thick, len), roughness:.65 });
-    // Sıra: +x, -x (baş/kuyruk kenarı), +y, -y (kapaklar), +z (sırt, öne bakar), -z (sayfa kenarı)
+  items.forEach(bk => {
+    const thick = .025 + rnd()*.025;
+    const len = .2 + rnd()*.07, dep = .14 + rnd()*.05;
+    const color = palette[Math.floor(rnd()*palette.length)];
+    const cover = coverMat(color);
+    const spine = new THREE.MeshStandardMaterial({ map: spineTextureH(bk.title, color, thick, len), roughness:.65 });
+    // Yüz sırası: +x, -x, +y, -y, +z (sırt, öne bakar), -z
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, thick, dep),
                                 [pageMat, pageMat, cover, cover, spine, pageMat]);
-    const px = cx + (Math.random() - .5)*.025, pz = cz + (Math.random() - .5)*.02;
+    const px = cx + (rnd() - .5)*.025, pz = cz + (rnd() - .5)*.02;
     mesh.position.set(px, y + thick/2, pz);
-    mesh.rotation.y = (Math.random() - .5) * .12;      // yığın biraz dağınık dursun
+    mesh.rotation.y = (rnd() - .5) * .12;
     mesh.castShadow = true; mesh.receiveShadow = true;
-    mesh.userData = { title, baseZ: pz, targetZ: pz, shelf: anchor, depth: dep, lying: true };
+    mesh.userData = { title: fullName(bk), baseZ: pz, targetZ: pz, shelf: anchor, depth: dep, lying: true };
     scene.add(mesh);
     bookMeshes.push(mesh);
     y += thick + .0005;
-  }
+  });
 }
-makeStack(-2.14, BACK_Z + .13, .95);   // sol kitaplığın yanı: uzun yığın
-makeStack( 2.14, BACK_Z + .13, .45);   // sağ kitaplığın yanı: kısa yığın
+makeStack(-2.14, BACK_Z + .13, leftStackBooks,  'Sol yığın', 24);
+makeStack( 2.14, BACK_Z + .13, rightStackBooks, 'Sağ yığın', 12);
 
 const pickables = [...bookMeshes, ...shelfParts, ...chairParts];
 
@@ -324,7 +593,7 @@ let lastPointerType = 'mouse';
 const lerpAngle = (a, b, t) => a + (((b - a + Math.PI) % (Math.PI*2) + Math.PI*2) % (Math.PI*2) - Math.PI) * t;
 const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
 
-// Dikey (portrait) ekranda yatay görüş darlaşır; dikey açıyı büyüterek dengeliyoruz
+// Dikey ekranda yatay görüş daralır; dikey açıyı büyüterek dengeliyoruz
 const boost = () => camera.aspect < 1 ? 1 + (1 - camera.aspect) * .9 : 1;
 function setFov(base) {
   const f = Math.min(100, base * boost());
@@ -343,7 +612,7 @@ function applyView(v) {
 }
 function goTo(newMode, getTarget, dur = 1.1, done) {
   controls.enabled = false;
-  if (lastPointerType === 'touch') mouse.set(9, 9);          // dokunmatikte önizlemeyi temizle
+  if (lastPointerType === 'touch') mouse.set(9, 9);
   transition = {
     from: { pos: camera.position.clone(), yaw: camera.rotation.y, pitch: camera.rotation.x, fov: camera.fov / boost() },
     to: getTarget, t: 0, dur, done
@@ -362,7 +631,7 @@ function goOrbit() {
   closePanel();
   goTo('orbit', () => homeView, 1.2, () => { controls.target.set(0, 1.2, -2); controls.enabled = true; controls.update(); });
 }
-function approachShelf(shelf, point) {
+function approachShelf(shelf, point, done) {
   closePanel();
   const x = clamp(point.x, shelf.position.x - .3, shelf.position.x + .3);
   const y = clamp(point.y, 1.0, 1.75);
@@ -370,7 +639,7 @@ function approachShelf(shelf, point) {
   const dir = new V3(point.x, point.y, SHELF_FRONT_Z).sub(pos);
   const yaw = Math.atan2(-dir.x, -dir.z), pitch = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
   povView = { pos, yaw, pitch, fov: 50, baseYaw: yaw };
-  goTo('pov', () => povView, 1.0);
+  goTo('pov', () => povView, 1.0, done);
 }
 function sitDown() { closePanel(); seatPitch = 0; goTo('seat', seatTarget, 1.2); }
 
@@ -380,7 +649,7 @@ function focusBook(b) {
   const wp = new V3(); b.getWorldPosition(wp);
   const frontZ = b.userData.shelf.position.z + b.userData.baseZ + b.userData.depth/2 + .1;
   focusView = { pos: new V3(wp.x, wp.y, frontZ + .45), yaw: 0, pitch: 0, fov: 45 };
-  if (b.userData.lying) {                       // yerdeki kitap: kamerayı yükselt, aşağı baktır
+  if (b.userData.lying) {
     focusView.pos.y += .3;
     focusView.pitch = -Math.atan2(.3, .45);
   }
@@ -395,11 +664,33 @@ function closeFocus() {
 }
 function closePanel() { panel.style.display = 'none'; focusedBook = null; selected = null; }
 function goBack() { if (mode === 'focus') closeFocus(); else if (mode !== 'orbit') goOrbit(); }
-function rowStep(dir) {        // pov modunda bir raf sırası yukarı/aşağı
+function rowStep(dir) {
   if (mode !== 'pov' || !povView) return;
   povView.pos.y = clamp(povView.pos.y + dir*.38, .6, 2.0);
   goTo('pov', () => povView, .4);
 }
+
+// ---------- Arama ----------
+const norm = s => s.toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+let lastQuery = '', matchIdx = 0;
+function searchBook(raw) {
+  const q = norm(raw.trim());
+  if (!q) return;
+  const found = bookMeshes.filter(b => norm(b.userData.title).includes(q));
+  if (!found.length) { hint.textContent = `Bulunamadı: ${raw.trim()}`; return; }
+  matchIdx = q === lastQuery ? (matchIdx + 1) % found.length : 0;   // aynı aramada Enter: sonraki sonuç
+  lastQuery = q;
+  const b = found[matchIdx];
+  const wp = new V3(); b.getWorldPosition(wp);
+  approachShelf(b.userData.shelf, wp, () => focusBook(b));
+  hint.textContent = `Sonuç ${matchIdx + 1}/${found.length} • tekrar Enter: sonraki`;
+}
+const searchEl = document.getElementById('search');
+searchEl.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { searchBook(searchEl.value); searchEl.blur(); }
+  if (e.key === 'Escape') searchEl.blur();
+});
 
 // ---------- Arayüz ----------
 const hint = document.getElementById('hint');
@@ -409,13 +700,14 @@ const hints = isMobile ? {
   seat:  'Sürükle: koltuğu döndür • Çimdik: zoom • Kitaba 1 kez dokun: ad/puan, 2 kez: incele',
   focus: 'Yıldıza dokun: puan ver • Geri: önceki konum'
 } : {
-  orbit: 'Sürükle: bak • Tekerlek: yaklaş • Rafa tıkla: yaklaş • Sandalyeye tıkla: otur • Tab: mod değiştir',
+  orbit: 'Sürükle: bak • Tekerlek: yaklaş • Rafa tıkla: yaklaş • Sandalyeye tıkla: otur • M: mod değiştir',
   pov:   'Sürükle: etrafa bak • Tekerlek: zoom • ↑/↓: yükseklik • Kitaba tıkla: incele • Esc: çık',
   seat:  'Sürükle veya A/D ←/→: koltuğu döndür • Tekerlek: zoom • Kitaba tıkla: incele • Esc: kalk',
   focus: 'Yıldıza tıkla: puan ver • Esc: geri'
 };
 function updateUI() {
   hint.textContent = hints[mode];
+  hint.style.visibility = mode === 'focus' ? 'hidden' : 'visible';     // panelle çakışmasın
   document.querySelectorAll('#ui button').forEach(b => b.classList.remove('active'));
   const act = mode === 'orbit' ? 'orbit' : mode === 'seat' ? 'seat' : null;
   if (act) document.querySelector(`#ui button[data-act="${act}"]`).classList.add('active');
@@ -434,7 +726,6 @@ document.querySelectorAll('#ui button').forEach(b => b.addEventListener('click',
 }));
 document.getElementById('rowUp').onclick = () => rowStep(1);
 document.getElementById('rowDown').onclick = () => rowStep(-1);
-updateUI();
 
 // ---------- Puan paneli + tooltip ----------
 const tip = document.getElementById('tip');
@@ -446,12 +737,15 @@ const starsText = r => r ? '★'.repeat(r) + '☆'.repeat(5 - r) : 'Henüz puan 
 
 function placeTip(x, y, touch) {
   tip.style.left = x + 'px'; tip.style.top = y + 'px';
-  tip.style.transform = touch ? 'translate(-50%,-130%)' : 'translate(14px,14px)';   // parmağın altında kalmasın
+  tip.style.transform = touch ? 'translate(-50%,-130%)' : 'translate(14px,14px)';
 }
 function updateTip() {
   if (!hovered) { tip.style.display = 'none'; return; }
   const t = hovered.userData.title;
-  tip.innerHTML = `<b>${t}</b><br><span class="stars">${starsText(ratings[t])}</span>`;
+  tip.textContent = '';                                  // innerHTML yerine güvenli metin ekleme
+  const b = document.createElement('b'); b.textContent = t;
+  const s = document.createElement('span'); s.className = 'stars'; s.textContent = starsText(ratings[t]);
+  tip.append(b, document.createElement('br'), s);
   tip.style.display = 'block';
 }
 function renderPanel() {
@@ -461,22 +755,27 @@ function renderPanel() {
   for (let i = 1; i <= 5; i++) {
     const s = document.createElement('span');
     s.className = 'st' + (i <= r ? ' on' : ''); s.textContent = '★';
-    s.onclick = () => { ratings[selected] = i; saveRatings(); renderPanel(); updateTip(); };
+    s.onclick = () => {
+      ratings[selected] = (ratings[selected] === i) ? 0 : i;     // aynı yıldıza tekrar basınca puan silinir
+      if (!ratings[selected]) delete ratings[selected];
+      saveRatings(); renderPanel(); updateTip();
+    };
     pstars.appendChild(s);
   }
 }
 document.getElementById('pclose').onclick = goBack;
+updateUI();
 
 // ---------- Fare / dokunma / klavye ----------
 const ray = new THREE.Raycaster();
 const mouse = new THREE.Vector2(9, 9);
 let dragging = false, last = {x:0, y:0, t:0}, downPos = null;
-const pts = new Map();          // aktif parmaklar (çimdik için)
+const pts = new Map();
 let pinchD = 0;
 const keys = new Set();
 
 addEventListener('pointermove', e => {
-  if (e.pointerType !== 'touch') {                    // dokunmatikte hover yok; önizleme dokunuşla yapılır
+  if (e.pointerType !== 'touch') {
     if (e.target === renderer.domElement) {
       mouse.x = (e.clientX/innerWidth)*2 - 1;
       mouse.y = -(e.clientY/innerHeight)*2 + 1;
@@ -485,7 +784,7 @@ addEventListener('pointermove', e => {
   }
   if (pts.has(e.pointerId)) pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
 
-  if (pts.size >= 2) {                                // iki parmak: zoom
+  if (pts.size >= 2) {
     const [a, b] = [...pts.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     if (pinchD) {
@@ -517,14 +816,14 @@ renderer.domElement.addEventListener('pointerdown', e => {
   if (pts.size === 1) {
     dragging = true; downPos = {x:e.clientX, y:e.clientY};
     last = {x:e.clientX, y:e.clientY, t:e.timeStamp};
-  } else { dragging = false; downPos = {x:-999, y:-999}; }   // çok parmakta tıklama sayılmasın
+  } else { dragging = false; downPos = {x:-999, y:-999}; }
 });
 function endPointer(e) {
   pts.delete(e.pointerId); pinchD = 0;
   if (pts.size === 0) {
     dragging = false;
     if (e.timeStamp - last.t > 80) chairVel = 0;
-  } else if (pts.size === 1) {                          // çimdikten sonra kalan parmakla sıçrama olmasın
+  } else if (pts.size === 1) {
     const p = [...pts.values()][0];
     dragging = true; last = {x:p.x, y:p.y, t:e.timeStamp};
   }
@@ -537,7 +836,7 @@ renderer.domElement.addEventListener('wheel', e => {
 }, {passive:true});
 
 renderer.domElement.addEventListener('click', e => {
-  if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 8) return;   // sürükleme tıklama değildir
+  if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 8) return;
   if (transition) return;
   const touch = lastPointerType === 'touch';
   const ndc = new THREE.Vector2((e.clientX/innerWidth)*2 - 1, -(e.clientY/innerHeight)*2 + 1);
@@ -546,7 +845,7 @@ renderer.domElement.addEventListener('click', e => {
   const hit = ray.intersectObjects(list, false)[0];
 
   if (touch) {
-    // Dokunmatik: 1. dokunuş = önizleme (ad+puan, kitap öne çıkar), 2. dokunuş = incele
+    // Dokunmatik: 1. dokunuş = önizleme (ad+puan), 2. dokunuş = incele
     if (hit && hit.object.userData.title && (mode === 'pov' || mode === 'seat') && hovered !== hit.object) {
       mouse.copy(ndc); placeTip(e.clientX, e.clientY, true); return;
     }
@@ -565,10 +864,10 @@ renderer.domElement.addEventListener('click', e => {
 });
 
 addEventListener('keydown', e => {
+  if (e.target instanceof HTMLInputElement) return;      // arama kutusuna yazarken kısayollar çalışmasın
   keys.add(e.code);
   if (e.code === 'Escape') goBack();
-  if (e.code === 'Tab') {
-    e.preventDefault();
+  if (e.code === 'KeyM') {
     if (mode === 'orbit') povView ? goTo('pov', () => povView, 1.0) : approachShelf(shelves[0], new V3(shelves[0].position.x, 1.5, SHELF_FRONT_Z));
     else if (mode === 'pov') sitDown();
     else if (mode === 'seat') goOrbit();
@@ -578,6 +877,7 @@ addEventListener('keydown', e => {
   }
 });
 addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());            // sekme değişince tuş takılı kalmasın
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -609,9 +909,13 @@ function animate(now) {
   else if (mode === 'pov' && povView) applyView(povView);
   else if (mode === 'focus' && focusView) applyView(focusView);
 
-  ray2.setFromCamera(mouse, camera);
-  const hit = ray2.intersectObjects(bookMeshes, false)[0];
-  const next = hit ? hit.object : null;
+  // İmleç ekran dışındaysa (9,9) ışın hesabını atla
+  let next = null;
+  if (Math.abs(mouse.x) <= 1 && Math.abs(mouse.y) <= 1) {
+    ray2.setFromCamera(mouse, camera);
+    const hit = ray2.intersectObjects(bookMeshes, false)[0];
+    next = hit ? hit.object : null;
+  }
   if (next !== hovered) {
     hovered = next;
     renderer.domElement.style.cursor = hovered ? 'pointer' : 'grab';
